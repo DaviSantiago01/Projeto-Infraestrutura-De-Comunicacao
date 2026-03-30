@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.log
+
+.venv/
+venv/
+env/
+
+PRD.MD
+arquivos_auxiliares/
+
+.DS_Store
+Thumbs.db
