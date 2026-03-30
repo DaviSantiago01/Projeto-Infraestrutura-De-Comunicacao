@@ -23,17 +23,14 @@ def receber_linha(reader):
 
 
 def escolher_host_servidor():
-    raw_host = input("Digite o host/IP do servidor [localhost]: ").strip()
-    if raw_host:
-        return raw_host
-    return DEFAULT_SERVER_HOST
+    return input("Digite o host/IP do servidor [localhost]: ").strip() or DEFAULT_SERVER_HOST
 
 
 def escolher_tamanho_maximo():
     while True:
         raw_value = input("Digite o tamanho maximo da mensagem em caracteres (minimo 30): ").strip()
         if not raw_value.isdigit():
-            print("[!] Digite apenas numeros inteiros.")
+            print("[!] Digite apenas numeros.")
             continue
 
         message_limit = int(raw_value)
@@ -174,9 +171,11 @@ def iniciar_cliente():
                     confirmed_limit, _confirmed_mode = realizar_handshake(reader, writer, message_limit, mode_code)
                     enviar_mensagens(reader, writer, confirmed_limit)
     except socket.gaierror:
-        print("[!] Host ou IP invalido. Use localhost, 127.0.0.1 ou o IP correto do servidor.")
+        print("[!] Host ou IP invalido. Use localhost, 127.0.0.1 ou o IP do servidor.")
     except ConnectionRefusedError:
         print("[!] Nao foi possivel conectar. Verifique se o servidor esta em execucao.")
+    except TimeoutError:
+        print("[!] Tempo esgotado. Verifique o IP e se o servidor esta ativo.")
     except (ConnectionError, ValueError) as error:
         print(f"[!] Erro na comunicacao: {error}")
 
