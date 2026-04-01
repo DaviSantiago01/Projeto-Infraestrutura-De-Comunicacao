@@ -155,6 +155,7 @@ def iniciar_servidor():
 
         while True:
             client_socket, client_address = server_socket.accept()
+            # Cada cliente e atendido em uma thread separada para nao bloquear novas conexoes.
             client_thread = threading.Thread(
                 target=processar_cliente,
                 args=(client_socket, client_address),

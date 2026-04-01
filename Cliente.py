@@ -11,6 +11,7 @@ MODES = {
 
 
 def enviar_linha(writer, message):
+    # O protocolo usa uma mensagem por linha para evitar ambiguidades na leitura via TCP.
     writer.write(message + "\n")
     writer.flush()
 
@@ -97,6 +98,7 @@ def interpretar_resposta_aplicacao(message):
 
 
 def realizar_handshake(reader, writer, message_limit, mode_code):
+    # Na Entrega 1, o handshake negocia apenas o tamanho maximo e o modo de operacao.
     handshake_message = montar_mensagem_handshake(message_limit, mode_code)
     enviar_linha(writer, handshake_message)
 
