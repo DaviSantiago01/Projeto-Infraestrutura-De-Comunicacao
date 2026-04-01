@@ -43,7 +43,11 @@ Na primeira entrega, cliente e servidor devem:
 - valida que o tamanho minimo e `30`;
 - confirma o handshake no servidor e no cliente.
 
-### Como executar a Entrega 1
+### Manual de uso da Entrega 1
+
+#### Requisitos
+- Python 3 instalado;
+- dois terminais abertos na pasta do projeto.
 
 #### 1. Inicie o servidor
 ```bash
@@ -79,6 +83,11 @@ Digite o tamanho maximo da mensagem em caracteres (minimo 30): 30
 - cada mensagem respeita o limite negociado;
 - digite `sair` para encerrar a sessao.
 
+#### Resultado esperado
+- o servidor deve indicar que esta aguardando conexoes;
+- o cliente deve exibir a conexao com o servidor;
+- o cliente e o servidor devem confirmar o handshake com `MAX` e `MODE`.
+
 ### Protocolo de handshake da Entrega 1
 Mensagem enviada pelo cliente:
 
@@ -91,6 +100,14 @@ Mensagem de confirmacao enviada pelo servidor:
 ```text
 HANDSHAKE_OK|MAX=30|MODE=1
 ```
+
+### Arquivos para submeter no Classroom
+- `Cliente.py`
+- `Servidor.py`
+- `README.md`
+
+### Observacao sobre IA
+Este projeto contou com apoio de IA para esclarecimento de requisitos, revisao textual e ajustes pontuais no codigo e na documentacao.
 
 
 ## Entrega 2
