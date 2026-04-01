@@ -1,7 +1,15 @@
-# Projeto de Infraestrutura de Comunicacao
+# Projeto de Infraestrutura de Comunicação
 
-## Visao geral
-Este projeto implementa uma aplicacao cliente-servidor em Python usando `socket`. O foco e evoluir uma comunicacao simples para um protocolo de aplicacao que simule transporte confiavel.
+## Visão geral
+Este projeto implementa uma aplicação cliente-servidor em Python usando `socket`. O foco é evoluir uma comunicação simples para um protocolo de aplicação que simule transporte confiável.
+
+## Como a comunicação foi pensada
+Nesta entrega, o foco está na base da comunicação entre os dois processos:
+- a aplicação segue o modelo cliente-servidor;
+- a comunicação ocorre sobre TCP, usando sockets como interface entre processo e rede;
+- o cliente inicia a conexão e o servidor permanece em escuta na porta `12345`;
+- antes da troca de mensagens, cliente e servidor negociam os parâmetros da sessão por meio de um handshake;
+- o protocolo da aplicação define tipos de mensagem, formato e regras de troca entre os processos.
 
 ## Grupo
 Grupo 5
@@ -11,8 +19,8 @@ Grupo 5
 - Pedro Guerra
 - Gabriel Assef
 - Caio Costa
-- Luis Eduardo Berard
-- Joao Victor Guimaraes
+- Luís Eduardo Berard
+- João Victor Guimarães
 - Eduardo Malheiros
 - Davi Santiago Costa
 
@@ -25,22 +33,28 @@ Grupo 5
 `-- Servidor.py
 ```
 
-
 ## Entrega 1 - Handshake inicial
 
 ### Escopo da entrega
 Na primeira entrega, cliente e servidor devem:
 - se conectar via socket;
-- trocar o modo de operacao;
-- trocar o tamanho maximo da comunicacao.
+- trocar o modo de operação;
+- trocar o tamanho máximo da comunicação.
 
-### O que o projeto atual ja faz
+### Foco desta primeira etapa
+Nesta etapa, a ideia principal não é mostrar o transporte confiável completo, mas sim provar que a infraestrutura básica da comunicação já está funcionando:
+- estabelecimento da conexão entre processos;
+- uso correto de host, porta e socket;
+- definição de um protocolo de aplicação simples;
+- negociação inicial dos parâmetros da sessão.
+
+### O que já está funcionando
 - sobe um servidor TCP;
 - conecta um cliente TCP;
 - permite informar `localhost` ou IP no cliente;
-- envia o tamanho maximo informado pelo usuario;
-- envia o modo de operacao escolhido pelo usuario;
-- valida que o tamanho minimo e `30`;
+- envia o tamanho máximo informado pelo usuário;
+- envia o modo de operação escolhido pelo usuário;
+- valida que o tamanho mínimo é `30`;
 - confirma o handshake no servidor e no cliente.
 
 ### Manual de uso da Entrega 1
@@ -48,6 +62,11 @@ Na primeira entrega, cliente e servidor devem:
 #### Requisitos
 - Python 3 instalado;
 - dois terminais abertos na pasta do projeto.
+
+#### Observações importantes
+- inicie o servidor antes do cliente;
+- no Windows, use `py -3` se `python3` não estiver configurado;
+- se cliente e servidor estiverem na mesma máquina, pressione `Enter` para usar `localhost`.
 
 #### 1. Inicie o servidor
 ```bash
@@ -67,48 +86,59 @@ Digite o host/IP do servidor [localhost]:
 Digite o host/IP do servidor [localhost]: 192.168.0.10
 ```
 
-#### 4. Informe o tamanho maximo
+#### 4. Informe o tamanho máximo
 Exemplo:
 
 ```text
-Digite o tamanho maximo da mensagem em caracteres (minimo 30): 30
+Digite o tamanho máximo da mensagem em caracteres (mínimo 30): 30
 ```
 
-#### 5. Escolha o modo de operacao
+#### 5. Escolha o modo de operação
 - `1` para `Go-Back-N`
-- `2` para `Repeticao Seletiva`
+- `2` para `Repetição Seletiva`
 
-#### 6. Envie mensagens
-- apos o handshake, o cliente entra em loop de mensagens;
+#### 6. Teste a sessão
+- após o handshake, o cliente entra em loop de mensagens;
 - cada mensagem respeita o limite negociado;
-- digite `sair` para encerrar a sessao.
+- digite `sair` para encerrar a sessão.
 
-#### Resultado esperado
-- o servidor deve indicar que esta aguardando conexoes;
-- o cliente deve exibir a conexao com o servidor;
+#### O que você deve ver
+- o servidor deve indicar que está aguardando conexões;
+- o cliente deve exibir a conexão com o servidor;
 - o cliente e o servidor devem confirmar o handshake com `MAX` e `MODE`.
 
-### Protocolo de handshake da Entrega 1
+#### Demonstração rápida
+- inicie o servidor;
+- conecte o cliente usando `localhost`;
+- informe um tamanho maior ou igual a `30`;
+- escolha o modo `1` ou `2`;
+- confirme que o handshake foi aceito nos dois lados.
+
+### Como a comunicação acontece
+1. o servidor abre o socket e entra em estado de espera;
+2. o cliente abre a conexão TCP com o servidor;
+3. o cliente envia a mensagem de handshake com `MAX` e `MODE`;
+4. o servidor valida os dados recebidos;
+5. o servidor responde com a confirmação do handshake;
+6. a sessão fica pronta para a troca de mensagens.
+
+### Handshake da Entrega 1
+Handshake é a troca inicial de mensagens entre cliente e servidor para definir como a sessão vai funcionar.
+
 Mensagem enviada pelo cliente:
 
 ```text
 HANDSHAKE|MAX=30|MODE=1
 ```
 
-Mensagem de confirmacao enviada pelo servidor:
+Mensagem de confirmação enviada pelo servidor:
 
 ```text
 HANDSHAKE_OK|MAX=30|MODE=1
 ```
 
-### Arquivos para submeter no Classroom
-- `Cliente.py`
-- `Servidor.py`
-- `README.md`
-
-### Observacao sobre IA
-Este projeto contou com apoio de IA para esclarecimento de requisitos, revisao textual e ajustes pontuais no codigo e na documentacao.
-
+### Observação sobre IA
+Este projeto contou com apoio de IA para esclarecimento de requisitos, revisão textual e ajustes pontuais no código e na documentação.
 
 ## Entrega 2
 Em desenvolvimento.
