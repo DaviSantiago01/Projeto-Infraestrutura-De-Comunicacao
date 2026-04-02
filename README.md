@@ -110,6 +110,15 @@ Digite o tamanho máximo da mensagem em caracteres (mínimo 30): 30
 - o cliente deve exibir a conexão com o servidor;
 - o cliente e o servidor devem confirmar o handshake com `MAX` e `MODE`.
 
+Exemplo de retorno durante a sessão:
+
+```text
+Mensagem: ola
+[Servidor] ACK do pacote 1: RECEBIDA
+Mensagem: 1
+[Servidor] ACK do pacote 2: RECEBIDA
+```
+
 #### Demonstração rápida
 - inicie o servidor;
 - conecte o cliente usando `localhost`;
