@@ -79,6 +79,9 @@ py -3 Cliente.py
 ```
 
 #### 3. Informe o host ou IP do servidor
+Se cliente e servidor estiverem no mesmo computador, use `localhost`.
+Se quiser usar o IP da rede local, confira primeiro o IPv4 atual da máquina do servidor.
+
 Exemplos:
 
 ```text
