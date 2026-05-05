@@ -1,45 +1,46 @@
 import socket
 
 
-DEFAULT_SERVER_HOST = "localhost"
-SERVER_PORT = 12345
-MIN_MESSAGE_LIMIT = 30
-MODES = {
+HOST_PADRAO_SERVIDOR = "localhost"
+PORTA_PADRAO_SERVIDOR = 5000
+LIMITE_MINIMO_MENSAGEM = 30
+TAMANHO_PACOTE = 4
+MODOS = {
     "1": "Go-Back-N",
     "2": "Repeticao Seletiva",
 }
 
 
-def enviar_linha(writer, message):
+def enviar_linha(escritor, mensagem):
     # O protocolo usa uma mensagem por linha para evitar ambiguidades na leitura via TCP.
-    writer.write(message + "\n")
-    writer.flush()
+    escritor.write(mensagem + "\n")
+    escritor.flush()
 
 
-def receber_linha(reader):
-    line = reader.readline()
-    if line == "":
+def receber_linha(leitor):
+    linha = leitor.readline()
+    if linha == "":
         raise ConnectionError("A conexao foi encerrada pelo servidor.")
-    return line.strip()
+    return linha.strip()
 
 
 def escolher_host_servidor():
-    return input("Digite o host/IP do servidor [localhost]: ").strip() or DEFAULT_SERVER_HOST
+    return input("Digite o host/IP do servidor [localhost]: ").strip() or HOST_PADRAO_SERVIDOR
 
 
 def escolher_tamanho_maximo():
     while True:
-        raw_value = input("Digite o tamanho maximo da mensagem em caracteres (minimo 30): ").strip()
-        if not raw_value.isdigit():
-            print("[!] Digite apenas numeros.")
+        valor = input("Digite o tamanho maximo da mensagem em caracteres (minimo 30): ").strip()
+        if not valor.isdigit():
+            print("Erro .............. digite apenas numeros.")
             continue
 
-        message_limit = int(raw_value)
-        if message_limit < MIN_MESSAGE_LIMIT:
-            print(f"[!] O tamanho minimo permitido e {MIN_MESSAGE_LIMIT} caracteres.")
+        tamanho_maximo = int(valor)
+        if tamanho_maximo < LIMITE_MINIMO_MENSAGEM:
+            print(f"Erro .............. tamanho minimo: {LIMITE_MINIMO_MENSAGEM} caracteres.")
             continue
 
-        return message_limit
+        return tamanho_maximo
 
 
 def escolher_modo_operacao():
@@ -47,139 +48,167 @@ def escolher_modo_operacao():
         print("\nEscolha o modo de operacao:")
         print("  1 - Go-Back-N")
         print("  2 - Repeticao Seletiva")
-        mode_code = input("Opcao: ").strip()
+        codigo_modo = input("Opcao: ").strip()
 
-        if mode_code in MODES:
-            return mode_code
+        if codigo_modo in MODOS:
+            return codigo_modo
 
-        print("[!] Opcao invalida. Escolha 1 ou 2.")
-
-
-def montar_mensagem_handshake(message_limit, mode_code):
-    return f"HANDSHAKE|MAX={message_limit}|MODE={mode_code}"
+        print("Erro .............. escolha 1 ou 2.")
 
 
-def interpretar_resposta_handshake(message):
-    parts = message.split("|")
-    if len(parts) != 3 or parts[0] != "HANDSHAKE_OK":
+def montar_handshake(tamanho_maximo, codigo_modo):
+    return f"HANDSHAKE|MAX={tamanho_maximo}|MODE={codigo_modo}"
+
+
+def interpretar_confirmacao_handshake(mensagem):
+    partes = mensagem.split("|")
+    if len(partes) != 3 or partes[0] != "HANDSHAKE_OK":
         return None
 
-    fields = {}
-    for part in parts[1:]:
-        key, separator, value = part.partition("=")
-        if separator != "=":
+    campos = {}
+    for parte in partes[1:]:
+        chave, separador, valor = parte.partition("=")
+        if separador != "=":
             return None
-        fields[key] = value
+        campos[chave] = valor
 
-    if "MAX" not in fields or "MODE" not in fields:
+    if "MAX" not in campos or "MODE" not in campos:
         return None
 
-    return fields["MAX"], fields["MODE"]
+    return campos["MAX"], campos["MODE"]
 
 
-def montar_mensagem_aplicacao(sequence_number, text):
-    return f"MESSAGE|SEQ={sequence_number}|TEXT={text}"
+def dividir_em_pacotes(texto):
+    return [texto[indice:indice + TAMANHO_PACOTE] for indice in range(0, len(texto), TAMANHO_PACOTE)]
 
 
-def interpretar_resposta_aplicacao(message):
-    parts = message.split("|", 2)
-    if len(parts) != 3 or parts[0] not in {"ACK", "NACK"}:
+def montar_pacote(sequencia, carga_util, ultimo_pacote):
+    marcador_final = "1" if ultimo_pacote else "0"
+    return f"PACOTE|SEQ={sequencia}|LAST={marcador_final}|TEXT={carga_util}"
+
+
+def interpretar_confirmacao_pacote(mensagem):
+    partes = mensagem.split("|", 2)
+    if len(partes) != 3 or partes[0] not in {"ACK", "NACK"}:
         return None
 
-    sequence_key, separator, sequence_value = parts[1].partition("=")
-    detail_key, separator2, detail_value = parts[2].partition("=")
-    if sequence_key != "SEQ" or separator != "=" or separator2 != "=":
+    chave_sequencia, separador, valor_sequencia = partes[1].partition("=")
+    chave_detalhe, separador2, valor_detalhe = partes[2].partition("=")
+    if chave_sequencia != "SEQ" or separador != "=" or separador2 != "=":
         return None
 
-    if not sequence_value.isdigit():
+    if not valor_sequencia.isdigit():
         return None
 
-    return parts[0], int(sequence_value), detail_key, detail_value
+    return partes[0], int(valor_sequencia), chave_detalhe, valor_detalhe
 
 
-def realizar_handshake(reader, writer, message_limit, mode_code):
+def realizar_handshake(leitor, escritor, tamanho_maximo, codigo_modo):
     # Na Entrega 1, o handshake negocia apenas o tamanho maximo e o modo de operacao.
-    handshake_message = montar_mensagem_handshake(message_limit, mode_code)
-    enviar_linha(writer, handshake_message)
+    mensagem_handshake = montar_handshake(tamanho_maximo, codigo_modo)
+    enviar_linha(escritor, mensagem_handshake)
 
-    response = receber_linha(reader)
-    if response.startswith("HANDSHAKE_ERROR|"):
-        raise ValueError(response)
+    resposta = receber_linha(leitor)
+    if resposta.startswith("HANDSHAKE_ERROR|"):
+        raise ValueError(resposta)
 
-    parsed_response = interpretar_resposta_handshake(response)
-    if parsed_response is None:
-        raise ValueError(f"Resposta invalida do servidor: {response}")
+    confirmacao = interpretar_confirmacao_handshake(resposta)
+    if confirmacao is None:
+        raise ValueError(f"Resposta invalida do servidor: {resposta}")
 
-    confirmed_limit, confirmed_mode = parsed_response
-    print("[*] Handshake concluido com sucesso.")
-    print(f"[*] Tamanho maximo confirmado pelo servidor: {confirmed_limit}")
-    print(f"[*] Modo de operacao confirmado pelo servidor: {MODES.get(confirmed_mode, confirmed_mode)}")
-    return int(confirmed_limit), confirmed_mode
+    tamanho_confirmado, modo_confirmado = confirmacao
+    print("\n[HANDSHAKE]")
+    print("Status ............ confirmado")
+    print(f"Limite ............ {tamanho_confirmado} caracteres")
+    print(f"Modo .............. {MODOS.get(modo_confirmado, modo_confirmado)}")
+    return int(tamanho_confirmado), modo_confirmado
 
 
-def enviar_mensagens(reader, writer, message_limit):
-    print("\n[*] Sessao de mensagens iniciada.")
-    print("[*] Digite suas mensagens e pressione Enter para enviar.")
-    print("[*] Digite 'sair' para encerrar a conexao.")
+def enviar_mensagens(leitor, escritor, tamanho_maximo):
+    print("\n[MENSAGEM]")
+    print("Digite o texto da comunicacao.")
+    print("Use 'sair' para encerrar.")
 
-    sequence_number = 1
+    sequencia = 1
 
     while True:
-        text = input("Mensagem: ").strip()
-        if not text:
-            print("[!] Digite uma mensagem nao vazia.")
+        texto = input("Texto > ").strip()
+        if not texto:
+            print("Erro .............. digite uma mensagem nao vazia.")
             continue
 
-        if text.lower() == "sair":
-            enviar_linha(writer, "ENCERRAR|ORIGIN=CLIENTE")
-            response = receber_linha(reader)
-            if response == "ENCERRADO|STATUS=OK":
-                print("[*] Conexao encerrada com sucesso.")
+        if texto.lower() == "sair":
+            enviar_linha(escritor, "ENCERRAR|ORIGIN=CLIENTE")
+            resposta = receber_linha(leitor)
+            if resposta == "ENCERRADO|STATUS=OK":
+                print("\n[CONEXAO]")
+                print("Status ............ encerrada")
                 return
-            raise ValueError(f"Resposta invalida ao encerrar a conexao: {response}")
+            raise ValueError(f"Resposta invalida ao encerrar a conexao: {resposta}")
 
-        if len(text) > message_limit:
-            print(f"[!] A mensagem excede o limite negociado de {message_limit} caracteres.")
+        if len(texto) > tamanho_maximo:
+            print(f"Erro .............. mensagem acima do limite de {tamanho_maximo} caracteres.")
             continue
 
-        application_message = montar_mensagem_aplicacao(sequence_number, text)
-        enviar_linha(writer, application_message)
+        pacotes = dividir_em_pacotes(texto)
+        print("\n[ENVIO]")
+        print(f"Mensagem original . {texto}")
+        print(f"Total de pacotes .. {len(pacotes)}")
+        print(f"Carga por pacote .. ate {TAMANHO_PACOTE} caracteres")
+        print("\n[PACOTES ENVIADOS]")
 
-        response = receber_linha(reader)
-        parsed_response = interpretar_resposta_aplicacao(response)
-        if parsed_response is None:
-            raise ValueError(f"Resposta invalida do servidor: {response}")
+        for indice, carga_util in enumerate(pacotes):
+            ultimo_pacote = indice == len(pacotes) - 1
+            mensagem_aplicacao = montar_pacote(sequencia, carga_util, ultimo_pacote)
+            print(f"\nSeq ............... {sequencia}")
+            print(f"Carga util ........ {carga_util}")
+            print(f"Tamanho ........... {len(carga_util)}")
+            print(f"Ultimo pacote ..... {'sim' if ultimo_pacote else 'nao'}")
+            enviar_linha(escritor, mensagem_aplicacao)
 
-        response_type, confirmed_sequence, detail_key, detail_value = parsed_response
-        if response_type == "ACK":
-            print(f"[Servidor] ACK do pacote {confirmed_sequence}: {detail_value}")
-            sequence_number += 1
-        else:
-            print(f"[Servidor] NACK do pacote {confirmed_sequence}: {detail_value}")
+            resposta = receber_linha(leitor)
+            resposta_interpretada = interpretar_confirmacao_pacote(resposta)
+            if resposta_interpretada is None:
+                raise ValueError(f"Resposta invalida do servidor: {resposta}")
+
+            tipo_resposta, sequencia_confirmada, _chave_detalhe, valor_detalhe = resposta_interpretada
+            if tipo_resposta == "ACK":
+                print(f"Confirmacao ....... ACK ({valor_detalhe})")
+                sequencia += 1
+            else:
+                print(f"Confirmacao ....... NACK ({valor_detalhe})")
+                break
 
 
 def iniciar_cliente():
-    server_host = escolher_host_servidor()
-    message_limit = escolher_tamanho_maximo()
-    mode_code = escolher_modo_operacao()
+    host_servidor = escolher_host_servidor()
+    tamanho_maximo = escolher_tamanho_maximo()
+    codigo_modo = escolher_modo_operacao()
 
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_socket:
-            client_socket.connect((server_host, SERVER_PORT))
-            print(f"[*] Conectado ao servidor em {server_host}:{SERVER_PORT}.")
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_cliente:
+            socket_cliente.connect((host_servidor, PORTA_PADRAO_SERVIDOR))
+            print("\n[CLIENTE]")
+            print(f"Servidor .......... {host_servidor}:{PORTA_PADRAO_SERVIDOR}")
+            print("Conexao ........... OK")
 
-            with client_socket.makefile("r", encoding="utf-8", newline="\n") as reader:
-                with client_socket.makefile("w", encoding="utf-8", newline="\n") as writer:
-                    confirmed_limit, _confirmed_mode = realizar_handshake(reader, writer, message_limit, mode_code)
-                    enviar_mensagens(reader, writer, confirmed_limit)
+            with socket_cliente.makefile("r", encoding="utf-8", newline="\n") as leitor:
+                with socket_cliente.makefile("w", encoding="utf-8", newline="\n") as escritor:
+                    tamanho_confirmado, _modo_confirmado = realizar_handshake(
+                        leitor,
+                        escritor,
+                        tamanho_maximo,
+                        codigo_modo,
+                    )
+                    enviar_mensagens(leitor, escritor, tamanho_confirmado)
     except socket.gaierror:
-        print("[!] Host ou IP invalido. Use localhost, 127.0.0.1 ou o IP do servidor.")
+        print("Erro .............. host ou IP invalido.")
     except ConnectionRefusedError:
-        print("[!] Nao foi possivel conectar. Verifique se o servidor esta em execucao.")
+        print("Erro .............. servidor indisponivel.")
     except TimeoutError:
-        print("[!] Tempo esgotado. Verifique o IP e se o servidor esta ativo.")
-    except (ConnectionError, ValueError) as error:
-        print(f"[!] Erro na comunicacao: {error}")
+        print("Erro .............. tempo de conexao esgotado.")
+    except (ConnectionError, ValueError) as erro:
+        print(f"Erro .............. {erro}")
 
 
 if __name__ == "__main__":

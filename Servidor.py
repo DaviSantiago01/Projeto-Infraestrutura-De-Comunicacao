@@ -2,165 +2,229 @@ import socket
 import threading
 
 
-LISTEN_HOST = "0.0.0.0"
-SERVER_PORT = 12345
-MIN_MESSAGE_LIMIT = 30
-MODES = {
+HOST_ESCUTA = "0.0.0.0"  # Escuta conexoes por localhost e pelos IPs da maquina.
+PORTA_SERVIDOR = 5000
+LIMITE_MINIMO_MENSAGEM = 30
+TAMANHO_PACOTE = 4
+MODOS = {
     "1": "Go-Back-N",
     "2": "Repeticao Seletiva",
 }
 
 
-def enviar_linha(writer, message):
-    writer.write(message + "\n")
-    writer.flush()
+def enviar_linha(escritor, mensagem):
+    escritor.write(mensagem + "\n")
+    escritor.flush()
 
 
-def receber_linha(reader):
-    line = reader.readline()
-    if line == "":
+def receber_linha(leitor):
+    linha = leitor.readline()
+    if linha == "":
         raise ConnectionError("O cliente encerrou a conexao.")
-    return line.strip()
+    return linha.strip()
 
 
-def interpretar_modo(mode_code):
-    return MODES.get(mode_code, f"Desconhecido ({mode_code})")
+def separar_endereco(endereco_cliente):
+    ip_cliente, porta_cliente = endereco_cliente
+    return ip_cliente, porta_cliente
 
 
-def interpretar_mensagem_handshake(message):
-    parts = message.split("|")
-    if len(parts) != 3 or parts[0] != "HANDSHAKE":
+def interpretar_modo(codigo_modo):
+    return MODOS.get(codigo_modo, f"Desconhecido ({codigo_modo})")
+
+
+def interpretar_handshake(mensagem):
+    partes = mensagem.split("|")
+    if len(partes) != 3 or partes[0] != "HANDSHAKE":
         return None
 
-    fields = {}
-    for part in parts[1:]:
-        key, separator, value = part.partition("=")
-        if separator != "=":
+    campos = {}
+    for parte in partes[1:]:
+        chave, separador, valor = parte.partition("=")
+        if separador != "=":
             return None
-        fields[key] = value
+        campos[chave] = valor
 
-    if "MAX" not in fields or "MODE" not in fields:
+    if "MAX" not in campos or "MODE" not in campos:
         return None
 
-    return fields["MAX"], fields["MODE"]
+    return campos["MAX"], campos["MODE"]
 
 
-def interpretar_mensagem_aplicacao(message):
-    parts = message.split("|", 2)
-    if len(parts) != 3 or parts[0] != "MESSAGE":
+def interpretar_pacote(mensagem):
+    partes = mensagem.split("|", 3)
+    if len(partes) != 4 or partes[0] != "PACOTE":
         return None
 
-    sequence_key, separator, sequence_value = parts[1].partition("=")
-    text_key, separator2, text_value = parts[2].partition("=")
-    if sequence_key != "SEQ" or separator != "=" or text_key != "TEXT" or separator2 != "=":
+    chave_sequencia, separador, valor_sequencia = partes[1].partition("=")
+    chave_ultimo, separador2, valor_ultimo = partes[2].partition("=")
+    chave_texto, separador3, carga_util = partes[3].partition("=")
+    if chave_sequencia != "SEQ" or separador != "=":
         return None
 
-    if not sequence_value.isdigit():
+    if chave_ultimo != "LAST" or separador2 != "=" or valor_ultimo not in {"0", "1"}:
         return None
 
-    return int(sequence_value), text_value
+    if chave_texto != "TEXT" or separador3 != "=":
+        return None
+
+    if not valor_sequencia.isdigit():
+        return None
+
+    return int(valor_sequencia), valor_ultimo == "1", carga_util
 
 
-def validar_handshake(message):
-    parsed_message = interpretar_mensagem_handshake(message)
-    if parsed_message is None:
+def validar_handshake(mensagem):
+    dados_handshake = interpretar_handshake(mensagem)
+    if dados_handshake is None:
         return None, "formato invalido de handshake"
 
-    raw_limit, mode_code = parsed_message
-    if not raw_limit.isdigit():
+    tamanho_bruto, codigo_modo = dados_handshake
+    if not tamanho_bruto.isdigit():
         return None, "tamanho maximo invalido"
 
-    message_limit = int(raw_limit)
-    if message_limit < MIN_MESSAGE_LIMIT:
-        return None, f"tamanho minimo deve ser {MIN_MESSAGE_LIMIT}"
+    tamanho_maximo = int(tamanho_bruto)
+    if tamanho_maximo < LIMITE_MINIMO_MENSAGEM:
+        return None, f"tamanho minimo deve ser {LIMITE_MINIMO_MENSAGEM}"
 
-    if mode_code not in MODES:
+    if codigo_modo not in MODOS:
         return None, "modo de operacao invalido"
 
-    return (message_limit, mode_code), None
+    return (tamanho_maximo, codigo_modo), None
 
 
-def processar_mensagens(reader, writer, client_address, message_limit):
+def processar_mensagens(leitor, escritor, endereco_cliente, tamanho_maximo):
+    partes_recebidas = []
+    tamanho_recebido = 0
+    ip_cliente, porta_cliente = separar_endereco(endereco_cliente)
+
     while True:
-        message = receber_linha(reader)
+        mensagem = receber_linha(leitor)
 
-        if message == "ENCERRAR|ORIGIN=CLIENTE":
-            enviar_linha(writer, "ENCERRADO|STATUS=OK")
-            print(f"[*] Cliente {client_address} solicitou o encerramento da sessao.")
+        if mensagem == "ENCERRAR|ORIGIN=CLIENTE":
+            enviar_linha(escritor, "ENCERRADO|STATUS=OK")
+            print("\n[CONEXAO]")
+            print(f"Cliente ........... {ip_cliente}")
+            print(f"Porta cliente ..... {porta_cliente}")
+            print("Status ............ encerrada pelo cliente")
             return
 
-        parsed_message = interpretar_mensagem_aplicacao(message)
-        if parsed_message is None:
-            enviar_linha(writer, "NACK|SEQ=0|ERROR=FORMATO_INVALIDO")
-            print(f"[!] Mensagem invalida recebida de {client_address}: {message}")
+        dados_pacote = interpretar_pacote(mensagem)
+        if dados_pacote is None:
+            enviar_linha(escritor, "NACK|SEQ=0|ERROR=FORMATO_INVALIDO")
+            print("\n[ERRO]")
+            print(f"Cliente ........... {ip_cliente}")
+            print("Motivo ............ pacote malformado")
+            print(f"Recebido .......... {mensagem}")
             continue
 
-        sequence_number, text = parsed_message
-        if len(text) > message_limit:
-            enviar_linha(writer, f"NACK|SEQ={sequence_number}|ERROR=LIMITE_EXCEDIDO")
-            print(f"[!] Pacote {sequence_number} excedeu o limite negociado para {client_address}.")
+        sequencia, ultimo_pacote, carga_util = dados_pacote
+        if len(carga_util) > TAMANHO_PACOTE:
+            enviar_linha(escritor, f"NACK|SEQ={sequencia}|ERROR=PACOTE_MUITO_GRANDE")
+            print("\n[ERRO]")
+            print(f"Pacote ............ {sequencia}")
+            print(f"Motivo ............ carga maior que {TAMANHO_PACOTE} caracteres")
             continue
 
-        print("[*] Pacote de aplicacao recebido.")
-        print(f"[*] Cliente: {client_address}")
-        print(f"[*] Sequencia: {sequence_number}")
-        print(f"[*] Tamanho da mensagem: {len(text)}")
-        print(f"[*] Conteudo: {text}")
+        if tamanho_recebido + len(carga_util) > tamanho_maximo:
+            enviar_linha(escritor, f"NACK|SEQ={sequencia}|ERROR=LIMITE_EXCEDIDO")
+            print("\n[ERRO]")
+            print(f"Pacote ............ {sequencia}")
+            print(f"Motivo ............ limite negociado excedido")
+            partes_recebidas = []
+            tamanho_recebido = 0
+            continue
 
-        enviar_linha(writer, f"ACK|SEQ={sequence_number}|STATUS=RECEBIDA")
+        partes_recebidas.append(carga_util)
+        tamanho_recebido += len(carga_util)
+
+        print("\n[PACOTE RECEBIDO]")
+        print(f"Cliente ........... {ip_cliente}")
+        print(f"Porta cliente ..... {porta_cliente}")
+        print(f"Porta servidor .... {PORTA_SERVIDOR}")
+        print(f"Sequencia ......... {sequencia}")
+        print(f"Carga util ........ {carga_util}")
+        print(f"Tamanho ........... {len(carga_util)}")
+        print(f"Ultimo pacote ..... {'sim' if ultimo_pacote else 'nao'}")
+
+        enviar_linha(escritor, f"ACK|SEQ={sequencia}|STATUS=RECEBIDA")
+
+        if ultimo_pacote:
+            mensagem_completa = "".join(partes_recebidas)
+            print("\n[MENSAGEM REMONTADA]")
+            print(f"Cliente ........... {ip_cliente}")
+            print(f"Texto completo .... {mensagem_completa}")
+            print(f"Tamanho total ..... {len(mensagem_completa)} caracteres")
+            partes_recebidas = []
+            tamanho_recebido = 0
 
 
-def processar_cliente(client_socket, client_address):
-    print(f"[+] Conexao estabelecida com {client_address}")
+def processar_cliente(socket_cliente, endereco_cliente):
+    ip_cliente, porta_cliente = separar_endereco(endereco_cliente)
+    print("\n[CONEXAO]")
+    print(f"Cliente ........... {ip_cliente}")
+    print(f"Porta cliente ..... {porta_cliente}")
+    print(f"Porta servidor .... {PORTA_SERVIDOR}")
+    print("Status ............ conectada")
 
-    with client_socket:
-        with client_socket.makefile("r", encoding="utf-8", newline="\n") as reader:
-            with client_socket.makefile("w", encoding="utf-8", newline="\n") as writer:
+    with socket_cliente:
+        with socket_cliente.makefile("r", encoding="utf-8", newline="\n") as leitor:
+            with socket_cliente.makefile("w", encoding="utf-8", newline="\n") as escritor:
                 try:
-                    handshake_message = receber_linha(reader)
-                    handshake_data, error_message = validar_handshake(handshake_message)
+                    mensagem_handshake = receber_linha(leitor)
+                    dados_handshake, mensagem_erro = validar_handshake(mensagem_handshake)
 
-                    if error_message is not None:
-                        enviar_linha(writer, f"HANDSHAKE_ERROR|MESSAGE={error_message}")
-                        print(f"[!] Handshake rejeitado para {client_address}: {error_message}")
+                    if mensagem_erro is not None:
+                        enviar_linha(escritor, f"HANDSHAKE_ERROR|MESSAGE={mensagem_erro}")
+                        print("\n[HANDSHAKE]")
+                        print(f"Cliente ........... {ip_cliente}")
+                        print("Status ............ rejeitado")
+                        print(f"Motivo ............ {mensagem_erro}")
                         return
 
-                    message_limit, mode_code = handshake_data
-                    mode_name = interpretar_modo(mode_code)
+                    tamanho_maximo, codigo_modo = dados_handshake
+                    nome_modo = interpretar_modo(codigo_modo)
 
-                    print("[*] Handshake recebido com sucesso.")
-                    print(f"[*] Cliente: {client_address}")
-                    print(f"[*] Tamanho maximo negociado: {message_limit} caracteres")
-                    print(f"[*] Modo de operacao negociado: {mode_name}")
+                    print("\n[HANDSHAKE]")
+                    print(f"Cliente ........... {ip_cliente}")
+                    print("Status ............ confirmado")
+                    print(f"Limite ............ {tamanho_maximo} caracteres")
+                    print(f"Modo .............. {nome_modo}")
 
-                    confirmation = f"HANDSHAKE_OK|MAX={message_limit}|MODE={mode_code}"
-                    enviar_linha(writer, confirmation)
-                    print(f"[*] Confirmacao de handshake enviada para {client_address}")
+                    confirmacao = f"HANDSHAKE_OK|MAX={tamanho_maximo}|MODE={codigo_modo}"
+                    enviar_linha(escritor, confirmacao)
 
-                    processar_mensagens(reader, writer, client_address, message_limit)
-                except (ConnectionError, ValueError) as error:
-                    print(f"[!] Falha ao processar o cliente {client_address}: {error}")
+                    processar_mensagens(leitor, escritor, endereco_cliente, tamanho_maximo)
+                except (ConnectionError, ValueError) as erro:
+                    print("\n[ERRO]")
+                    print(f"Cliente ........... {ip_cliente}")
+                    print(f"Motivo ............ {erro}")
                 finally:
-                    print(f"[-] Conexao encerrada com {client_address}")
+                    print("\n[CONEXAO]")
+                    print(f"Cliente ........... {ip_cliente}")
+                    print(f"Porta cliente ..... {porta_cliente}")
+                    print("Status ............ finalizada")
 
 
 def iniciar_servidor():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:
-        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        server_socket.bind((LISTEN_HOST, SERVER_PORT))
-        server_socket.listen()
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as socket_servidor:
+        socket_servidor.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        socket_servidor.bind((HOST_ESCUTA, PORTA_SERVIDOR))
+        socket_servidor.listen()
 
-        print(f"[*] Servidor aguardando conexoes na porta {SERVER_PORT}.")
-        print("[*] Aceita conexoes por localhost ou por IP da maquina.")
+        print("[SERVIDOR]")
+        print(f"Host .............. {HOST_ESCUTA}")
+        print(f"Porta ............. {PORTA_SERVIDOR}")
+        print("Status ............ aguardando conexoes")
 
         while True:
-            client_socket, client_address = server_socket.accept()
+            socket_cliente, endereco_cliente = socket_servidor.accept()
             # Cada cliente e atendido em uma thread separada para nao bloquear novas conexoes.
-            client_thread = threading.Thread(
+            thread_cliente = threading.Thread(
                 target=processar_cliente,
-                args=(client_socket, client_address),
+                args=(socket_cliente, endereco_cliente),
             )
-            client_thread.start()
+            thread_cliente.start()
 
 
 if __name__ == "__main__":

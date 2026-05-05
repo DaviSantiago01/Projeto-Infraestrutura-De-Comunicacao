@@ -1,30 +1,8 @@
 # Projeto de Infraestrutura de Comunicação
 
-## Visão geral
-Este projeto implementa uma aplicação cliente-servidor em Python usando `socket`. O foco é evoluir uma comunicação simples para um protocolo de aplicação que simule transporte confiável.
+Aplicação cliente-servidor em Python usando `socket`. O projeto simula, na camada de aplicação, a base de um protocolo de transporte confiável.
 
-## Como a comunicação foi pensada
-Nesta entrega, o foco está na base da comunicação entre os dois processos:
-- a aplicação segue o modelo cliente-servidor;
-- a comunicação ocorre sobre TCP, usando sockets como interface entre processo e rede;
-- o cliente inicia a conexão e o servidor permanece em escuta na porta `12345`;
-- antes da troca de mensagens, cliente e servidor negociam os parâmetros da sessão por meio de um handshake;
-- o protocolo da aplicação define tipos de mensagem, formato e regras de troca entre os processos.
-
-## Grupo
-Grupo 5
-
-### Integrantes
-- Lucas Samuel Pereira Alves
-- Pedro Guerra
-- Gabriel Assef
-- Caio Costa
-- Luís Eduardo Berard
-- João Victor Guimarães
-- Eduardo Malheiros
-- Davi Santiago Costa
-
-## Estrutura do projeto
+## Estrutura
 
 ```text
 .
@@ -33,127 +11,81 @@ Grupo 5
 `-- Servidor.py
 ```
 
-## Entrega 1 - Handshake inicial
+## Versão Atual
 
-### Escopo da entrega
-Na primeira entrega, cliente e servidor devem:
-- se conectar via socket;
-- trocar o modo de operação;
-- trocar o tamanho máximo da comunicação.
+O sistema já permite:
 
-### Foco desta primeira etapa
-Nesta etapa, a ideia principal não é mostrar o transporte confiável completo, mas sim provar que a infraestrutura básica da comunicação já está funcionando:
-- estabelecimento da conexão entre processos;
-- uso correto de host, porta e socket;
-- definição de um protocolo de aplicação simples;
-- negociação inicial dos parâmetros da sessão.
+- conexão cliente-servidor via socket TCP;
+- uso de `localhost` ou IP da máquina do servidor;
+- uso da porta padrão `5000`;
+- handshake inicial com tamanho máximo e modo de operação;
+- validação do tamanho mínimo de `30` caracteres;
+- envio de mensagens em pacotes de até `4` caracteres;
+- confirmação de cada pacote com `ACK`;
+- remontagem da mensagem completa no servidor.
 
-### O que já está funcionando
-- sobe um servidor TCP;
-- conecta um cliente TCP;
-- permite informar `localhost` ou IP no cliente;
-- envia o tamanho máximo informado pelo usuário;
-- envia o modo de operação escolhido pelo usuário;
-- valida que o tamanho mínimo é `30`;
-- confirma o handshake no servidor e no cliente.
+## Como Executar
 
-### Manual de uso da Entrega 1
+Abra dois terminais na pasta do projeto.
 
-#### Requisitos
-- Python 3 instalado;
-- dois terminais abertos na pasta do projeto.
+No primeiro terminal, inicie o servidor:
 
-#### Observações importantes
-- inicie o servidor antes do cliente;
-- no Windows, use `py -3` se `python3` não estiver configurado;
-- se cliente e servidor estiverem na mesma máquina, pressione `Enter` para usar `localhost`.
-
-#### 1. Inicie o servidor
 ```bash
 py -3 Servidor.py
 ```
 
-#### 2. Inicie o cliente
+No segundo terminal, inicie o cliente:
+
 ```bash
 py -3 Cliente.py
 ```
 
-#### 3. Informe o host ou IP do servidor
-Se cliente e servidor estiverem no mesmo computador, use `localhost`.
-Se quiser usar o IP da rede local, confira primeiro o IPv4 atual da máquina do servidor.
+Durante a execução do cliente:
 
-Exemplos:
+- pressione `Enter` no host para usar `localhost`;
+- informe um tamanho máximo maior ou igual a `30`;
+- escolha `1` para Go-Back-N ou `2` para Repetição Seletiva;
+- digite uma mensagem para enviar;
+- digite `sair` para encerrar a conexão.
 
-```text
-Digite o host/IP do servidor [localhost]:
-Digite o host/IP do servidor [localhost]: 192.168.0.10
-```
+## Entrega 1 - Handshake
 
-#### 4. Informe o tamanho máximo
-Exemplo:
+Nesta etapa, cliente e servidor devem se conectar e trocar os dados iniciais da sessão.
 
-```text
-Digite o tamanho máximo da mensagem em caracteres (mínimo 30): 30
-```
-
-#### 5. Escolha o modo de operação
-- `1` para `Go-Back-N`
-- `2` para `Repetição Seletiva`
-
-#### 6. Teste a sessão
-- após o handshake, o cliente entra em loop de mensagens;
-- cada mensagem respeita o limite negociado;
-- digite `sair` para encerrar a sessão.
-
-#### O que você deve ver
-- o servidor deve indicar que está aguardando conexões;
-- o cliente deve exibir a conexão com o servidor;
-- o cliente e o servidor devem confirmar o handshake com `MAX` e `MODE`.
-
-Exemplo de retorno durante a sessão:
-
-```text
-Mensagem: ola
-[Servidor] ACK do pacote 1: RECEBIDA
-Mensagem: 1
-[Servidor] ACK do pacote 2: RECEBIDA
-```
-
-#### Demonstração rápida
-- inicie o servidor;
-- conecte o cliente usando `localhost`;
-- informe um tamanho maior ou igual a `30`;
-- escolha o modo `1` ou `2`;
-- confirme que o handshake foi aceito nos dois lados.
-
-### Como a comunicação acontece
-1. o servidor abre o socket e entra em estado de espera;
-2. o cliente abre a conexão TCP com o servidor;
-3. o cliente envia a mensagem de handshake com `MAX` e `MODE`;
-4. o servidor valida os dados recebidos;
-5. o servidor responde com a confirmação do handshake;
-6. a sessão fica pronta para a troca de mensagens.
-
-### Handshake da Entrega 1
-Handshake é a troca inicial de mensagens entre cliente e servidor para definir como a sessão vai funcionar.
-
-Mensagem enviada pelo cliente:
+O handshake usado no projeto segue este formato:
 
 ```text
 HANDSHAKE|MAX=30|MODE=1
 ```
 
-Mensagem de confirmação enviada pelo servidor:
+O servidor responde:
 
 ```text
 HANDSHAKE_OK|MAX=30|MODE=1
 ```
 
-### Observação sobre IA
-Este projeto contou com apoio de IA para esclarecimento de requisitos, revisão textual e ajustes pontuais no código e na documentação.
+Esses campos indicam:
 
-## Entrega 2
-Em desenvolvimento.
+- `MAX`: tamanho máximo da comunicação definido pelo cliente;
+- `MODE`: modo de operação escolhido, sendo `1` para Go-Back-N e `2` para Repetição Seletiva.
+
+## Entrega 2 - Troca de Mensagens
+
+Nesta etapa, a comunicacao considera um canal sem erros e sem perdas.
+
+Depois do handshake, o cliente pode digitar mensagens em loop. Cada mensagem e quebrada em pacotes de ate `4` caracteres. O cliente mostra os metadados de cada pacote enviado. O servidor recebe os pacotes, imprime seus metadados, confirma cada um com `ACK` e remonta a mensagem completa no final.
+
+Nesta versao, o modo escolhido no handshake fica registrado na sessao. A diferenca completa entre Go-Back-N e Repeticao Seletiva sera implementada na proxima etapa, junto com erros, perdas e retransmissao.
+
+Exemplo com a mensagem `infraestrutura`:
+
+```text
+Pacote 1: infr
+Pacote 2: aest
+Pacote 3: rutu
+Pacote 4: ra
+```
 
 ## Entrega 3
+
 Em desenvolvimento.

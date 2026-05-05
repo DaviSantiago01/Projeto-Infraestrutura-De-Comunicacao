@@ -8,6 +8,8 @@ env/
 
 PRD.MD
 arquivos_auxiliares/
+output/
+.vscode/
 
 .DS_Store
 Thumbs.db
